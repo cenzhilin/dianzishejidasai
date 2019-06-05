@@ -1,0 +1,212 @@
+C51 COMPILER V9.01   MAIN                                                                  01/16/2018 10:18:42 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          
+   2          #include <reg51.h>
+   3          //#include <intrins.h>
+   4          
+   5          #define COM P1// 接低位或者高位
+   6          
+   7          #define smg_DATA  P2 //数码管数据管脚
+   8          
+   9          
+  10          unsigned code smgduan[10]={0xC0,0xF9,0xA4,0xB0,0x99,0x92,0x82,0xF8,0x80,0x90};
+  11          
+  12          unsigned  int data0=0;  //预先定义,节省初始化时间
+  13          unsigned  int ten[10];
+  14          unsigned  char intTIME =0; //计算外部中断次数.
+  15          unsigned char x =0 ;
+  16          
+  17          bit flag =  0;    //
+  18          
+  19          
+  20          unsigned  int j=0;   //
+  21          
+  22           void delay1ms(void)   //800us
+  23          {
+  24   1              unsigned char a,b;
+  25   1          for(b=159;b>0;b--)
+  26   1              for(a=1;a>0;a--);
+  27   1      }
+  28          
+  29          void delay10ms(void){
+  30   1                unsigned char a,b,c;
+  31   1          for(c=5;c>0;c--)
+  32   1              for(b=4;b>0;b--)
+  33   1                  for(a=248;a>0;a--);
+  34   1      }
+  35          
+  36          void init_E0(){
+  37   1              IT0=1;
+  38   1        PX0=1;
+  39   1              EX0=1;
+  40   1              TR1 = 1 ;    //开T1 
+  41   1              EA=1; //开全局中断
+  42   1      }
+  43          
+  44          void initT0 () //T0 定时器定时 250   
+  45          {
+  46   1      TMOD =0X02;  //定时器0 方式二,8位重装载,
+  47   1      ET0 = 1;
+  48   1      TR0 = 0;
+  49   1      TH0 =236 ;// 20us  250us
+  50   1      TL0 =236;  // 20us
+  51   1      
+  52   1      }
+  53          
+  54          void interrupt_0 () interrupt 0
+  55          {
+C51 COMPILER V9.01   MAIN                                                                  01/16/2018 10:18:42 PAGE 2   
+
+  56   1      if(TR0 == 0){flag =0;j=0;}   // 因为TR0 在上一次结束后是0,进行初始化数值.,然后下一次 开始 TR0 还是0;
+  57   1              TR0=~TR0;           //一次跳变 ,开定时器, 一次跳变,关定时器
+  58   1      if(TR0==0){flag =1; }  //TR0 从1变为0 后,FLAG = 1 说明计数完成,关定时器,得出了J
+  59   1      }
+  60          
+  61          void int_t0() interrupt 1{
+  62   1      j++;
+  63   1      }
+  64          
+  65          
+  66          
+  67          
+  68          unsigned int handle1 (void){   // 储存一次周期
+  69   1      if(flag == 1){ //得出了J,所以可以进行运算了;
+  70   2              data0  =  j*2; // 算出一个以 ms 为 单位的 周期 0.04 *100;
+  71   2              data0  =  100000/data0; //得出频率 (1000/周期)*10 *100;
+  72   2      data0 = 10*data0;        //  公式为10
+  73   2              //匹配到转速
+  74   2              //data0 = data0 - 0.067*data0;
+  75   2              ten[intTIME] = data0; ;
+  76   2         intTIME +=1;
+  77   2              return data0;
+  78   2      }
+  79   1      }
+  80          
+  81          
+  82          unsigned int handle3(){
+  83   1      unsigned char x;
+  84   1      unsigned int temp;
+  85   1      unsigned int z = 0;
+  86   1      
+  87   1              for(x=0;x<9;x++){ //ten[9]的数是最大的;  
+  88   2      if(ten[x]>ten[x+1]){
+  89   3      temp = ten[x];
+  90   3      ten[x] = ten[x+1] ;
+  91   3      ten[x+1] = temp;
+  92   3      }
+  93   2      }
+  94   1      for(x=8;x>1;x--){ //ten[9]的数是最大的;  从8开始 ,让ten[0] 最小
+  95   2      if(ten[x]<ten[x-1]){
+  96   3      temp = ten[x];
+  97   3      ten[x  ] = ten[x - 1 ] ;
+  98   3      ten[x -1 ] = temp;
+  99   3      }
+ 100   2      }
+ 101   1      
+ 102   1      for(x = 1 ; x< 9; x++){ // 计算 x =1 - 8 ;
+ 103   2      z += ten[x] ;
+ 104   2      }
+ 105   1      
+ 106   1      z= z *0.125;
+ 107   1      
+ 108   1      return z ;
+ 109   1              
+ 110   1      }
+ 111          
+ 112          void display(unsigned int datas){ //显示模块,显示转速,输入一个4位转速数值 ;    
+ 113   1              
+ 114   1              //if(datas<1000){while(1){
+ 115   1                      COM = 0x01; //千位,共阴极 .
+ 116   1                      smg_DATA = smgduan[datas/1000];
+ 117   1                      delay1ms();
+C51 COMPILER V9.01   MAIN                                                                  01/16/2018 10:18:42 PAGE 3   
+
+ 118   1                      smg_DATA = 0xff;
+ 119   1      
+ 120   1                      COM = 0x02; // 百位
+ 121   1                      smg_DATA = smgduan[datas/100%10];
+ 122   1                      delay1ms();
+ 123   1                      smg_DATA = 0xff;
+ 124   1              delay1ms();
+ 125   1                      COM =0x04; //十位
+ 126   1                      smg_DATA =smgduan[datas/10%10] ;
+ 127   1                      delay1ms();
+ 128   1                      smg_DATA = 0xff;
+ 129   1       delay1ms();
+ 130   1      
+ 131   1                      COM = 0x08; //个位
+ 132   1                      smg_DATA = smgduan[datas%10];
+ 133   1                      delay1ms();
+ 134   1                      smg_DATA = 0xff;
+ 135   1              //}}
+ 136   1              
+ 137   1              
+ 138   1      }
+ 139                          
+ 140                  
+ 141          
+ 142          
+ 143          
+ 144          void main(){
+ 145   1      unsigned  int  z=0 ;
+ 146   1      init_E0();
+ 147   1      initT0 ();
+ 148   1              
+ 149   1              while(1){     //程序循环        
+ 150   2                      handle1();
+ 151   2      display(1);
+ 152   2                      if(intTIME == 10){ //中断110次后,关闭中断,进入显示循环
+ 153   3              
+ 154   3                              EA = 0 ;
+ 155   3              z = handle3();
+ 156   3      
+ 157   3              while(1)
+ 158   3                      {       
+ 159   4                              if(z<1000){z=z*10;
+ 160   5      while(1){
+ 161   6                      display(z); //如果FLAG = 1,说明得出的J改变了,输出新的值,否则输出原本的值,因为是全局变量,所以值会一直保留
+ 162   6          COM =0x04;
+ 163   6                              smg_DATA = 0x7f;
+ 164   6              delay1ms();
+ 165   6              smg_DATA = 0xff;
+ 166   6              delay1ms();
+ 167   6      }
+ 168   5      
+ 169   5      
+ 170   5      }
+ 171   4      else {
+ 172   5      while(1){
+ 173   6      display(z);
+ 174   6      
+ 175   6      }
+ 176   5      }
+ 177   4      
+ 178   4      }
+ 179   3      
+C51 COMPILER V9.01   MAIN                                                                  01/16/2018 10:18:42 PAGE 4   
+
+ 180   3      }
+ 181   2      }
+ 182   1      }
+*** WARNING C291 IN LINE 79 OF MAIN.C: not every exit path returns a value
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    544    ----
+   CONSTANT SIZE    =     20    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     26       4
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)
